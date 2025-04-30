@@ -1,6 +1,5 @@
 import streamlit as st  
 import pandas as pd  
-import base64  
 from io import BytesIO  
 import time  
   
@@ -59,7 +58,7 @@ def main():
         preview_rows = st.slider("Preview Rows", 5, 50, 10)  
         st.markdown("---")  
         st.markdown("### Instructions")  
-        st.markdown("1. Upload your CSV file(s)")  
+        st.markdown("1. Upload your CSV file(s) (semicolon-separated).")  
         st.markdown("2. Preview the data")  
         st.markdown("3. Download as Excel")  
   
@@ -81,8 +80,8 @@ def main():
                     time.sleep(0.01)  
                     progress_bar.progress(i + 1)  
   
-                # Read and display data  
-                df = pd.read_csv(uploaded_file)  
+                # Read CSV using semicolon as separator  
+                df = pd.read_csv(uploaded_file, sep=';')  
                   
                 col1, col2, col3 = st.columns(3)  
                 with col1:  
