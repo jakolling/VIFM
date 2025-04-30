@@ -1,64 +1,55 @@
-
-import streamlit as st
+# Load and test with actual files
 import pandas as pd
-import io
+import numpy as np
 
-def add_source_columns(df, source):
-    return df.add_suffix(f' ({source})')
+def normalize_data(value):
+    if pd.isna(value):
+        return value
+    value = str(value).strip().replace('"', '')
+    value = value.replace(',', '.').replace(' ', '')
+    value = ''.join(c for c in value if c.isdigit() or c in '.-')
+    try:
+        return float(value)
+    except:
+        return np.nan
 
-def main():
-    st.title('WyScout + SkillCorner Data Merger')
-    
-    wyscout_file = st.file_uploader('WyScout Data (XLSX)', type='xlsx')
-    physical_file = st.file_uploader('SkillCorner Physical Output (CSV)', type='csv')
-    pressure_file = st.file_uploader('SkillCorner Overcoming Pressure (CSV)', type='csv')
-    
-    if wyscout_file:
-        try:
-            df_wyscout = pd.read_excel(wyscout_file)
-            player_col = df_wyscout.columns[0]
-            df_wyscout = df_wyscout.rename(columns={player_col: 'Player'})
-            
-            if physical_file:
-                df_physical = pd.read_csv(physical_file, sep=';')
-                df_physical.columns = df_physical.columns.str.replace('"', '').str.strip()
-                physical_cols = df_physical.columns.difference(['Player'])
-                df_physical_tagged = df_physical[physical_cols].add_suffix(' (Physical Output)')
-                df_physical = pd.concat([df_physical['Player'], df_physical_tagged], axis=1)
-                
-            if pressure_file:
-                df_pressure = pd.read_csv(pressure_file, sep=';')
-                df_pressure.columns = df_pressure.columns.str.replace('"', '').str.strip()
-                pressure_cols = df_pressure.columns.difference(['Player'])
-                df_pressure_tagged = df_pressure[pressure_cols].add_suffix(' (Overcoming Pressure)')
-                df_pressure = pd.concat([df_pressure['Player'], df_pressure_tagged], axis=1)
-            
-            final_df = df_wyscout.copy()
-            
-            if physical_file:
-                final_df = final_df.merge(df_physical, on='Player', how='left')
-            if pressure_file:
-                final_df = final_df.merge(df_pressure, on='Player', how='left')
-            
-            st.write('Data Preview:')
-            st.dataframe(final_df.head())
-            
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                final_df.to_excel(writer, index=False)
-            output.seek(0)
-            
-            st.download_button(
-                label='Download Merged Data',
-                data=output,
-                file_name='wyscout_skillcorner_merged.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            
-        except Exception as e:
-            st.error(f'Error: {str(e)}')
-    else:
-        st.info('Please upload WyScout file to begin')
+# Load files
+df_wyscout = pd.read_excel('Search results (49) (1).xlsx')
+df_physical = pd.read_csv('SkillCorner-2025-04-30.csv', sep=';', encoding='utf-8')
+df_pressure = pd.read_csv('SkillCorner-2025-04-30 (1).csv', sep=';', encoding='utf-8')
 
-if __name__ == '__main__':
-    main()
+# Clean WyScout data
+df_wyscout['Player'] = df_wyscout['Player'].str.strip()
+
+# Process SkillCorner files
+for col in df_physical.columns:
+    if col != 'Player':
+        df_physical[col] = df_physical[col].apply(normalize_data)
+        df_physical = df_physical.rename(columns={col: f"{col} (Physical Output)"})
+df_physical['Player'] = df_physical['Player'].str.strip()
+
+for col in df_pressure.columns:
+    if col != 'Player':
+        df_pressure[col] = df_pressure[col].apply(normalize_data)
+        df_pressure = df_pressure.rename(columns={col: f"{col} (Overcoming Pressure)"})
+df_pressure['Player'] = df_pressure['Player'].str.strip()
+
+# Merge data
+final_df = df_wyscout.copy()
+final_df = final_df.merge(df_physical, on='Player', how='left')
+final_df = final_df.merge(df_pressure, on='Player', how='left')
+
+# Save merged data
+final_df.to_excel('wyscout_skillcorner_merged.xlsx', index=False)
+
+print("Preview of merged data:")
+print(final_df.head())
+
+print("\
+Columns in final dataset:")
+print(final_df.columns.tolist())
+
+print("\
+Statistics for SkillCorner metrics:")
+skillcorner_cols = [col for col in final_df.columns if 'Physical Output' in col or 'Overcoming Pressure' in col]
+print(final_df[skillcorner_cols].describe())
